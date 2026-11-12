@@ -35,7 +35,11 @@ CAM_WIDTH, CAM_HEIGHT = 640, 480   # разрешение захвата с ка
 MARGIN_X = 0.15
 MARGIN_Y = 0.15
 
-SMOOTHING = 0.45       # 0 — курсор дёргается за пальцем, 1 — полностью заморожен
+# Адаптивное сглаживание: вдали от цели курсор догоняет палец быстро,
+# вблизи цели двигается плавно и не дрожит.
+SMOOTH_MIN = 0.15      # сглаживание при точном наведении (меньше = плавнее)
+SMOOTH_MAX = 0.85      # скорость догоняния при большом отклонении
+RAMP_PX = 80.0         # отклонение (пикс), на котором скорость достигает максимума
 PINCH_ON = 0.38        # расстояние < этого порога — щипок начался
 PINCH_OFF = 0.55       # расстояние > этого порога — щипок закончился (гистерезис)
 CLICK_MIN_INTERVAL = 0.25   # защита от двойных кликов, сек
@@ -176,10 +180,13 @@ def update_cursor(landmarks):
     if smooth_x is None:
         smooth_x, smooth_y = target_x, target_y
     else:
-        smooth_x += (target_x - smooth_x) * SMOOTHING
-        smooth_y += (target_y - smooth_y) * SMOOTHING
+        # Адаптивный коэффициент: чем дальше курсор от цели, тем быстрее догоняет
+        dist_px = np.hypot(target_x - smooth_x, target_y - smooth_y)
+        alpha = SMOOTH_MIN + (SMOOTH_MAX - SMOOTH_MIN) * min(1.0, dist_px / RAMP_PX)
+        smooth_x += (target_x - smooth_x) * alpha
+        smooth_y += (target_y - smooth_y) * alpha
 
-    pyautogui.moveTo(int(smooth_x), int(smooth_y))
+    pyautogui.moveTo(int(round(smooth_x)), int(round(smooth_y)))
 
 
 def update_pinch(distance: float):
